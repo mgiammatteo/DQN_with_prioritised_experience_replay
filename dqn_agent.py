@@ -56,7 +56,7 @@ class Agent():
         self.qnetwork_local.eval()
         with torch.no_grad():
             action_values_state = self.qnetwork_local(state)
-            action_values_next_state = self.qnetwork_local(next_state)
+            action_values_next_state = self.qnetwork_target(next_state)
             
         self.qnetwork_local.train()
         
