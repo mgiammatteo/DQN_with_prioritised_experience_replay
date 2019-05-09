@@ -190,17 +190,33 @@ class ReplayBuffer:
     
     def sample(self):
         """Sample a batch of experiences from memory based on their priority."""
+
+        # if the buffer is full, consider it all, otherwise use only up to self.pos which tracks the
+        # latest full index.
         if len(self.memory) == self.buffer_size:
             prios = self.priorities
         else:
             prios = self.priorities[:self.pos]
         
+        # given the absolute values of the td-errors, which we use to prioritise experiences,
+        # normalise them and add the ALPHA hyperparameter. This hyperparameter is used as follows.
+        # If we always select experiences with the highest priority, we might end up replaying a subset of 
+        # experiences all the time. resulting in overfitting the subset.
+        # To avoid this we introduce some element of uniform random sampling with ALPHA.
+        # ALPHA = 0: corresponds to pure uniform randomness.
+        # ALPHA = 1: only uses priorities and no randomness.
         probs  = prios ** ALPHA
         probs /= probs.sum()
         
         indices = np.random.choice(len(self.memory), self.batch_size, p=probs)
         experiences = [self.memory[idx] for idx in indices]
         
+        # Wne we use PER, we have to make an adjustment to the GD update rule, called IMPORTANCE SAMPLING.
+        # This is because our original Q-Learning update is derived from an expectation over all experiences.
+        # When using a stochastic update rule, the way we sample these experiences must match the 
+        # underlying distribution they come from. This assumption is violated when we use a non-uniform sampling.
+        # The q-value we learn will be biased according to these priorities which we only wanted to use for sampling.
+        # Solution: to correct for this bias, we introduce importance sampling weights.
         total    = len(self.memory)
         weights  = (total * probs[indices]) ** (-BETA)
         weights /= weights.max()
